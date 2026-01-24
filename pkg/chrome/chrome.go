@@ -24,3 +24,14 @@ func Open(url string) error {
 
 	return nil
 }
+
+func Close() error {
+	cmd := exec.Command("osascript", "-e", "quit app \"Google Chrome\"")
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("failed to start command: %w", err)
+	}
+	if err := cmd.Wait(); err != nil {
+		return fmt.Errorf("command execution failed: %w", err)
+	}
+	return nil
+}
