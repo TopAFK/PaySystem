@@ -4,20 +4,15 @@ import (
 	"log"
 	"time"
 
-	"paysystem/configs"
-	"paysystem/internal/payment"
-	"paysystem/pkg/db"
-	"paysystem/pkg/httpx"
-	"paysystem/pkg/tbank"
+	"toppay/configs"
+	"toppay/internal/payment"
+	"toppay/pkg/db"
+	"toppay/pkg/httpx"
+	"toppay/pkg/tbank"
 )
 
 var (
 	processedPaymentIDs = make(map[string]struct{})
-)
-
-const (
-	Online = iota
-	Offline
 )
 
 const (
@@ -112,7 +107,7 @@ func main() {
 
 				log.Printf("Processing payment")
 
-				status, err := payment.Process(db.TD, paidAt, sum)
+				response, err := payment.Process(configs.SYSTEM_KEY, configs.SYSTEM_HOST, configs.SYSTEM_PATH, paidAt, sum)
 
 				if err != nil {
 					log.Println("❌ Error processing payment:", err)
@@ -120,13 +115,13 @@ func main() {
 				}
 
 				processedPaymentIDs[op.ID] = struct{}{}
-				switch status {
+				switch response.Status {
 				case payment.StatusSucceeded:
 					log.Printf("✅ Payment succeeded, sum: %s", sum)
 				case payment.StatusDuplicate:
 					log.Printf("⚠️ Payment duplicate, sum: %s", sum)
 				case payment.StatusError:
-					log.Printf("❌ Payment error, sum: %s", sum)
+					log.Printf("❌ Payment error, sum: %s, error: %s", sum, response.Text)
 				}
 			}
 

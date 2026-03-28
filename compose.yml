@@ -4,7 +4,4 @@ services:
     build: .
     env_file:
       - ./configs/.env
-    volumes:
-      - ./sms/code.txt:/sms/code.txt
-      - ./pw-profile:/pw-profile
-    restart: unless-stopped
+    restart: always

@@ -1,50 +1,63 @@
 package payment
 
 import (
-	"database/sql"
+	"encoding/json"
+	"fmt"
+	"strconv"
+	"time"
 
 	"github.com/shopspring/decimal"
+	"github.com/valyala/fasthttp"
 )
 
 type Status string
 
 const (
-	StatusSucceeded    Status = "succeeded"
-	StatusDuplicate    Status = "duplicate"
-	StatusManyPayments Status = "many_payments"
-	StatusError        Status = "error"
+	StatusSucceeded Status = "succeeded"
+	StatusDuplicate Status = "duplicate"
+	StatusError     Status = "error"
 )
 
-type Payment struct {
-	ID     string `json:"id"`
-	Status uint8  `json:"status"`
+type Response struct {
+	Text   string `json:"text"`
+	Status Status `json:"status"`
 }
 
-func Process(db *sql.DB, paidAt int64, sum decimal.Decimal) (Status, error) {
-	rows, err := db.Query("SELECT `id`, `status` FROM `payments` WHERE `sum` = ? AND (created_at < FROM_UNIXTIME(?) AND created_at > FROM_UNIXTIME(?))", sum, paidAt, paidAt-1800)
+func Process(systemKey string, systemHost string, systemPath string, paidAt int64, sum decimal.Decimal) (*Response, error) {
+	var uri fasthttp.URI
+	uri.SetScheme("https")
+	uri.SetHost(systemHost)
+	uri.SetPath(systemPath)
 
-	if err != nil {
-		return "", err
-	}
-	defer rows.Close()
-	var payments []Payment
+	q := uri.QueryArgs()
+	q.Add("do", "pay_payment_v2")
+	q.Add("key", systemKey)
+	q.Add("paid_at", strconv.FormatInt(paidAt, 10))
+	q.Add("sum", sum.StringFixed(2))
 
-	for rows.Next() {
-		var payment Payment
-		if err := rows.Scan(&payment.ID, &payment.Status); err != nil {
-			return "", err
-		}
-		payments = append(payments, payment)
-	}
-	if rows.Err() != nil {
-		return "", rows.Err()
-	}
-	
-	for _, p := range payments {
-		if p.Status == 1 {
-			return StatusDuplicate, nil
-		}
+	req := fasthttp.AcquireRequest()
+	resp := fasthttp.AcquireResponse()
+	defer fasthttp.ReleaseRequest(req)
+	defer fasthttp.ReleaseResponse(resp)
+
+	req.SetRequestURI(uri.String())
+	req.Header.SetMethod(fasthttp.MethodPost)
+	req.Header.SetContentType("application/x-www-form-urlencoded")
+
+	req.SetBody([]byte(q.String()))
+
+	if err := fasthttp.DoTimeout(req, resp, time.Minute); err != nil {
+		return nil, err
 	}
 
-	return StatusSucceeded, nil
+	if statusCode := resp.StatusCode(); statusCode != fasthttp.StatusOK {
+		return nil, fmt.Errorf("HTTP %d", statusCode)
+	}
+
+	var response Response
+	if err := json.Unmarshal(resp.Body(), &response); err != nil {
+		return nil, err
+	}
+
+	return &response, nil
 }

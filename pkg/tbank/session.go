@@ -7,9 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"time"
 
-	"paysystem/configs"
+	"toppay/configs"
 
 	"github.com/playwright-community/playwright-go"
 )
@@ -18,12 +17,15 @@ var installOnce sync.Once
 
 func GetSession() (string, error) {
 	log.Println("1/9 Installing Playwright")
-	var installErr error
+	/* var installErr error
 	installOnce.Do(func() {
 		installErr = playwright.Install()
 	})
 	if installErr != nil {
 		return "", fmt.Errorf("playwright.Install: %v", installErr)
+	} */
+	if err := playwright.Install(); err != nil {
+		return "", fmt.Errorf("playwright.Install: %v", err)
 	}
 
 	log.Println("2/7 Launching Playwright")
@@ -139,19 +141,19 @@ func GetSession() (string, error) {
 	// На странице либо есть ввод телефона, либо сразу пин-код.
 	phoneInput := page.Locator("[automation-id=phone-input]")
 	pinCodeInput0 := page.Locator("#pinCode0")
-	otpInput := page.Locator("[automation-id=otp-input]")
 	submitBtn := page.Locator("[automation-id=button-submit]")
 	passwordInput := page.Locator("[automation-id=password-input]")
 
 	if visible, _ := phoneInput.IsVisible(); visible {
 
-		// 1) Вводим телефон
+		// Вводим телефон
 		log.Println("1/9 Entering phone")
 
 		if err := phoneInput.Fill(phoneMasked); err != nil {
 			return "", fmt.Errorf("Fill: %v", err)
 		}
 
+		// Подтверждаем
 		log.Println("2/9 Submitting phone")
 
 		if err := submitBtn.Click(); err != nil {
@@ -161,34 +163,19 @@ func GetSession() (string, error) {
 		// Подстраховка — ждём networkidle, но полагаемся на селекторы:
 		waitPage(page)
 
-		log.Println("3/9 Handling OTP and PIN")
-		// 2 Ждём появления поля для кода из СМС и просим тебя ввести код
-		if err := otpInput.WaitFor(); err != nil {
-			return "", fmt.Errorf("WaitFor otp-input: %v", err)
-		}
-
-		log.Println("4/9 Waiting 30 seconds for SMS code file...")
-		time.Sleep(30 * time.Second) // Просто ждем 30 секунд
-
-		// Читаем файл
-		content, err := os.ReadFile(configs.SMS_CODE_FILE)
+		// Ждём появления поля для TOTP
+		log.Println("3/9 Waiting for TOTP")
+		totp, err := GenerateTOTP(configs.TBANK_TOTP_SECRET)
 		if err != nil {
-			return "", fmt.Errorf("не удалось прочитать файл %s: %v", configs.SMS_CODE_FILE, err)
+			return "", fmt.Errorf("GenerateTOTP: %v", err)
 		}
 
-		// Убираем лишние пробелы и переносы строк (важно для OTP!)
-		code := strings.TrimSpace(string(content))
-
-		if code == "" {
-			return "", fmt.Errorf("файл с кодом пуст")
+		log.Println("4/9 Setting TOTP")
+		if err := setPinCode(page, totp); err != nil {
+			return "", fmt.Errorf("setPinCode: %v", err)
 		}
 
-		log.Printf("5/9 Filling OTP code: %s\n", code)
-		if err := otpInput.Fill(code); err != nil {
-			return "", fmt.Errorf("Fill otp code: %v", err)
-		}
-
-		// 3 После ввода кода может открыться экран с пин-кодом
+		// 3 После ввода TOTP может открыться экран с пин-кодом
 		waitPage(page)
 
 		err = passwordInput.WaitFor(playwright.LocatorWaitForOptions{
@@ -249,6 +236,7 @@ func GetSession() (string, error) {
 	for _, c := range cookies {
 		if c.Name == "psid" {
 			log.Println("3/3 ✅ Cookies found")
+			log.Println(c.Value)
 			return c.Value, nil
 		}
 	}

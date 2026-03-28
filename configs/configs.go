@@ -27,8 +27,7 @@ var (
 	TBANK_PHONE    string
 	TBANK_PIN      string
 	TBANK_PASSWORD string
-
-	SMS_CODE_FILE string
+	TBANK_TOTP_SECRET string
 
 	DB_DSN string
 )
@@ -57,8 +56,7 @@ func Init() error {
 	TBANK_PHONE = os.Getenv("TBANK_PHONE")
 	TBANK_PIN = os.Getenv("TBANK_PIN")
 	TBANK_PASSWORD = os.Getenv("TBANK_PASSWORD")
-
-	SMS_CODE_FILE = os.Getenv("SMS_CODE_FILE")
+	TBANK_TOTP_SECRET = os.Getenv("TBANK_TOTP_SECRET")
 
 	DB_DSN = os.Getenv("DB_DSN")
 
@@ -87,8 +85,8 @@ func Init() error {
 	if TBANK_PASSWORD == "" {
 		missing = append(missing, "TBANK_PASSWORD")
 	}
-	if SMS_CODE_FILE == "" {
-		missing = append(missing, "SMS_CODE_FILE")
+	if TBANK_TOTP_SECRET == "" {
+		missing = append(missing, "TBANK_TOTP_SECRET")
 	}
 	if DB_DSN == "" {
 		missing = append(missing, "DB_DSN")
