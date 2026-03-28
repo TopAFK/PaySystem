@@ -1,15 +1,21 @@
-FROM golang:1.25-alpine AS build
+# ---------- BUILD STAGE ----------
+FROM golang:1.25-alpine AS builder
+
 WORKDIR /app
-COPY go.mod ./
+
+COPY go.mod go.sum ./
 RUN go mod download
+
 COPY . .
+
 ENV CGO_ENABLED=0
 RUN go build -o /toppay ./cmd/toppay
 
-# ВАЖНО: playwright runtime (Ubuntu-based) со всеми deps
-FROM mcr.microsoft.com/playwright:v1.52.0-jammy
-WORKDIR /
-COPY --from=build /toppay /toppay
-COPY --from=build /app/configs/.env /configs/.env
+# ---------- RUNTIME STAGE ----------
+FROM mcr.microsoft.com/playwright:v1.58.2-noble
+
+WORKDIR /app
+
+COPY --from=builder /toppay /toppay
 
 CMD ["/toppay"]

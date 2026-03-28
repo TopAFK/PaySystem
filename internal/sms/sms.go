@@ -1,51 +1,50 @@
 package sms
 
 import (
-	"encoding/json"
 	"fmt"
+	"os"
+	"strings"
 	"time"
-
-	"github.com/valyala/fasthttp"
 )
 
 type Response struct {
 	SMSCode string `json:"sms_code"`
 }
 
-// FetchCode — запрашивает у пользователя код из СМС.
-func FetchCode(systemKey string, systemHost string, systemPath string) (string, error) {
-	var uri fasthttp.URI
-	uri.SetScheme("https")
-	uri.SetHost(systemHost)
-	uri.SetPath(systemPath)
+// FetchCode — получает код из файла (если задан) или через HTTP.
+func GetCode(codeFile string, pollInterval time.Duration, timeout time.Duration) (string, error) {
+	return waitForCodeFile(codeFile, pollInterval, timeout)
+}
 
-	q := uri.QueryArgs()
-	q.Add("do", "sms_code")
-	q.Add("key", systemKey)
-
-	req := fasthttp.AcquireRequest()
-	resp := fasthttp.AcquireResponse()
-	defer fasthttp.ReleaseRequest(req)
-	defer fasthttp.ReleaseResponse(resp)
-
-	req.SetRequestURI(uri.String())
-	req.Header.SetMethod(fasthttp.MethodPost)
-	req.Header.SetContentType("application/x-www-form-urlencoded")
-
-	req.SetBody([]byte(q.String()))
-
-	if err := fasthttp.DoTimeout(req, resp, time.Minute); err != nil {
-		return "", err
+func waitForCodeFile(codeFile string, pollInterval time.Duration, timeout time.Duration) (string, error) {
+	if pollInterval <= 0 {
+		pollInterval = time.Second
+	}
+	if timeout <= 0 {
+		timeout = 2 * time.Minute
 	}
 
-	if statusCode := resp.StatusCode(); statusCode != fasthttp.StatusOK {
-		return "", fmt.Errorf("HTTP %d", statusCode)
-	}
+	deadline := time.Now().Add(timeout)
+	for {
+		if time.Now().After(deadline) {
+			return "", fmt.Errorf("timeout waiting for SMS code in %s", codeFile)
+		}
 
-	var response Response
-	if err := json.Unmarshal(resp.Body(), &response); err != nil {
-		return "", err
-	}
+		content, err := os.ReadFile(codeFile)
+		if err != nil {
+			if os.IsNotExist(err) {
+				time.Sleep(pollInterval)
+				continue
+			}
+			return "", err
+		}
 
-	return response.SMSCode, nil
+		code := strings.TrimSpace(string(content))
+		if code != "" {
+			_ = os.WriteFile(codeFile, []byte{}, 0o600)
+			return code, nil
+		}
+
+		time.Sleep(pollInterval)
+	}
 }

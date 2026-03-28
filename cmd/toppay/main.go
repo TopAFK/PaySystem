@@ -1,18 +1,23 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"time"
 
 	"paysystem/configs"
 	"paysystem/internal/payment"
-	"paysystem/pkg/tbank"
+	"paysystem/pkg/db"
 	"paysystem/pkg/httpx"
+	"paysystem/pkg/tbank"
 )
 
 var (
 	processedPaymentIDs = make(map[string]struct{})
+)
+
+const (
+	Online = iota
+	Offline
 )
 
 const (
@@ -26,12 +31,19 @@ func main() {
 
 	log.Println("1/4 ▫️ Starting client")
 
+	
+	log.Println("2/4 ▫️ Initializing configs")
 	if err := configs.Init(); err != nil {
 		log.Fatal(err)
 	}
-	log.Println("2/4 ▫️ Config initialized")
 
-	log.Println("3/4 ▫️ Fetching session ID...")
+	log.Println("3/4 ▫️ Initializing database")
+
+	if err := db.Init(configs.DB_DSN); err != nil {
+		log.Fatal(err)
+	}
+
+	log.Println("4/4 ▫️ Fetching session ID")
 
 	const maxRetries = 5
 	var bankSession string
@@ -54,16 +66,13 @@ func main() {
 		log.Fatal("❌ Failed to get session ID after ", maxRetries, " attempts: ", err)
 	}
 	
-	log.Println("4/4 ▫️ Session ID obtained")
-
 	client := httpx.New(configs.REQUEST_RATE)
 
 	for {
 		for {
-			log.Println("🌀 Fetching data...")
+			log.Println("Fetching data")
 
 			response, err := tbank.FetchData(bankSession, configs.BANK_HOST, configs.BANK_PATH, configs.REQUEST_RATE, client)
-			fmt.Print("\033[1A\033[K")
 			if err != nil {
 				log.Println("❌ Error fetching data:", err)
 				time.Sleep(time.Second)
@@ -74,7 +83,7 @@ func main() {
 				switch response.ResultCode {
 				case ResultInsufficientPrivileges:
 					
-					log.Println("🌀 Updating session...")
+					log.Println("Updating session")
 					bankSession, err = tbank.GetSession()
 					if err != nil {
 						log.Println("❌ Error updating session:", err)
@@ -101,24 +110,23 @@ func main() {
 				paidAt := op.CreatedAt.Milliseconds / 1000
 				sum := op.Amount.Sum
 
-				log.Printf("🌀 Processing payment...")
+				log.Printf("Processing payment")
 
-				response, err := payment.Process(configs.SYSTEM_KEY, configs.SYSTEM_HOST, configs.SYSTEM_PATH, paidAt, sum)
+				status, err := payment.Process(db.TD, paidAt, sum)
 
-				fmt.Print("\033[1A\033[K")
 				if err != nil {
 					log.Println("❌ Error processing payment:", err)
 					continue
 				}
 
 				processedPaymentIDs[op.ID] = struct{}{}
-				switch response.Status {
+				switch status {
 				case payment.StatusSucceeded:
 					log.Printf("✅ Payment succeeded, sum: %s", sum)
 				case payment.StatusDuplicate:
 					log.Printf("⚠️ Payment duplicate, sum: %s", sum)
 				case payment.StatusError:
-					log.Printf("❌ Payment error, sum: %s, message: %s", sum, response.Text)
+					log.Printf("❌ Payment error, sum: %s", sum)
 				}
 			}
 

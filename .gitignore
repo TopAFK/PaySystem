@@ -10,6 +10,7 @@
 *.dylib
 
 # Папки сборки и временные файлы
+/vendor/
 /build/
 /tmp/
 
@@ -27,5 +28,12 @@
 .vscode/
 .idea/
 
+/cmd/toppay/pw-profile/
+cmd/toppay/pw-profile
+
 # MacOS
 .DS_Store
+
+
+*/pw-profile/
+pw-profile

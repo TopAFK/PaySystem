@@ -71,6 +71,5 @@ func FetchData(bankSessionID string, bankHost string, bankPath string, requestRa
 	if err := json.Unmarshal(resp.Body(), &apiResponse); err != nil {
 		return apiResponse, err
 	}
-	
 	return apiResponse, nil
 }
