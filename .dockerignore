@@ -1,6 +1,17 @@
 .git
 .gitignore
+.vscode
 Dockerfile
 docker-compose.yml
 compose.yml
 README.md
+node_modules
+tmp
+logs
+*.log
+*.cache
+dist
+build
+vendor
+playwright-report
+test-results

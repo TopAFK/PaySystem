@@ -28,8 +28,6 @@ var (
 	TBANK_PIN      string
 	TBANK_PASSWORD string
 	TBANK_TOTP_SECRET string
-
-	DB_DSN string
 )
 
 func Init() error {
@@ -58,8 +56,6 @@ func Init() error {
 	TBANK_PASSWORD = os.Getenv("TBANK_PASSWORD")
 	TBANK_TOTP_SECRET = os.Getenv("TBANK_TOTP_SECRET")
 
-	DB_DSN = os.Getenv("DB_DSN")
-
 	missing := []string{}
 	if BANK_HOST == "" {
 		missing = append(missing, "BANK_HOST")
@@ -87,9 +83,6 @@ func Init() error {
 	}
 	if TBANK_TOTP_SECRET == "" {
 		missing = append(missing, "TBANK_TOTP_SECRET")
-	}
-	if DB_DSN == "" {
-		missing = append(missing, "DB_DSN")
 	}
 	if len(missing) > 0 {
 		return fmt.Errorf("missing required env: %s", strings.Join(missing, ", "))

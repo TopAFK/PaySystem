@@ -6,7 +6,6 @@ import (
 
 	"toppay/configs"
 	"toppay/internal/payment"
-	"toppay/pkg/db"
 	"toppay/pkg/httpx"
 	"toppay/pkg/tbank"
 )
@@ -24,21 +23,16 @@ const (
 
 func main() {
 
-	log.Println("1/4 ▫️ Starting client")
+	log.Println("1/3 ▫️ Starting client")
 
 	
-	log.Println("2/4 ▫️ Initializing configs")
+	log.Println("2/3 ▫️ Initializing configs")
 	if err := configs.Init(); err != nil {
 		log.Fatal(err)
 	}
 
-	log.Println("3/4 ▫️ Initializing database")
 
-	if err := db.Init(configs.DB_DSN); err != nil {
-		log.Fatal(err)
-	}
-
-	log.Println("4/4 ▫️ Fetching session ID")
+	log.Println("3/3 ▫️ Fetching session ID")
 
 	const maxRetries = 5
 	var bankSession string

@@ -3,100 +3,44 @@ package tbank
 import (
 	"fmt"
 	"log"
-	"os"
-	"path/filepath"
 	"strings"
-	"sync"
-
 	"toppay/configs"
 
 	"github.com/playwright-community/playwright-go"
 )
 
-var installOnce sync.Once
-
 func GetSession() (string, error) {
-	log.Println("1/9 Installing Playwright")
-	/* var installErr error
-	installOnce.Do(func() {
-		installErr = playwright.Install()
-	})
-	if installErr != nil {
-		return "", fmt.Errorf("playwright.Install: %v", installErr)
-	} */
 	if err := playwright.Install(); err != nil {
 		return "", fmt.Errorf("playwright.Install: %v", err)
 	}
 
-	log.Println("2/7 Launching Playwright")
+	log.Println("1/5 Launching Playwright")
 	pw, err := playwright.Run()
 	if err != nil {
 		return "", fmt.Errorf("playwright.Run: %v", err)
 	}
 	defer func() { _ = pw.Stop() }()
 
-	// 1 задаёшь относительную папку профиля
-	relDir := "./pw-profile"
-
-	log.Println("3/9 Setting up profile")
-
-	// 2 превращаешь в абсолютную
-	userDataDir, err := filepath.Abs(relDir)
+	log.Println("2/5 Launching browser")
+	browser, err := pw.Chromium.Launch(playwright.BrowserTypeLaunchOptions{
+		Headless: playwright.Bool(true),
+	})
 	if err != nil {
-		return "", fmt.Errorf("filepath.Abs: %v", err)
+		return "", fmt.Errorf("Launch: %v", err)
 	}
+	defer func() { _ = browser.Close() }()
 
-	log.Println("4/9 Ensuring profile exists")
-	// 3 гарантируешь, что папка существует
-	if err := os.MkdirAll(userDataDir, 0o755); err != nil {
-		return "", fmt.Errorf("MkdirAll: %v", err)
-	}
-
-	log.Println("5/9 Launching persistent context")
-	// 4 запускаешь persistent context
-	ctx, err := pw.Chromium.LaunchPersistentContext(
-		userDataDir,
-		playwright.BrowserTypeLaunchPersistentContextOptions{
-			Headless:  playwright.Bool(true),
-			SlowMo:    playwright.Float(250),
-			UserAgent: playwright.String("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"),
-		},
-	)
+	log.Println("3/5 Creating context")
+	ctx, err := browser.NewContext(playwright.BrowserNewContextOptions{
+		UserAgent: playwright.String("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"),
+	})
 	if err != nil {
-		return "", fmt.Errorf("LaunchPersistentContext: %v", err)
+		return "", fmt.Errorf("NewContext: %v", err)
 	}
-
 	defer func() { _ = ctx.Close() }()
 
-	origins := []string{"https://www.tbank.ru", "https://id.tbank.ru"}
 
-	for _, origin := range origins {
-		err := ctx.GrantPermissions(
-			[]string{"geolocation", "camera", "microphone", "notifications"},
-
-			playwright.BrowserContextGrantPermissionsOptions{
-				Origin: &origin,
-			},
-		)
-		if err != nil {
-			return "", fmt.Errorf("GrantPermissions for %s: %v", origin, err)
-		}
-	}
-
-	var accuracy float64 = 50
-	err = ctx.SetGeolocation(&playwright.Geolocation{
-		Latitude:  55.7558,
-		Longitude: 37.6173,
-		Accuracy:  &accuracy,
-	})
-
-	if err != nil {
-		return "", fmt.Errorf("SetGeolocation: %v", err)
-	}
-
-	log.Println("6/9 Route seting up")
-	// Блокируем тяжёлые ресурсы (image/media/font/stylesheet)
-	/* if err := ctx.Route("**", func(r playwright.Route) {
+	if err := ctx.Route("**", func(r playwright.Route) {
 		switch r.Request().ResourceType() {
 		case "image", "media", "font", "stylesheet":
 			_ = r.Abort()
@@ -105,32 +49,30 @@ func GetSession() (string, error) {
 		}
 	}); err != nil {
 		return "", fmt.Errorf("Route: %v", err)
-	} */
+	}
 
-	log.Println("7/9 Creating page")
+	log.Println("4/5 Creating page")
 
 	page, err := ctx.NewPage()
 	if err != nil {
 		return "", fmt.Errorf("NewPage: %v", err)
 	}
 
-	// Установим разумные таймауты для ожиданий
-	page.SetDefaultTimeout(60_000)            // ожидания локаторов и т.п.
-	page.SetDefaultNavigationTimeout(100_000) // навигации
+	// Таймауты
+	page.SetDefaultTimeout(60_000)
+	page.SetDefaultNavigationTimeout(100_000)
 
-	log.Println("8/9 Navigating to login page")
-	// Навигация на страницу логина
-	waitState := playwright.WaitUntilState("networkidle") // допустимое значение WaitUntil
+	log.Println("5/5 Navigating")
+
+	waitState := playwright.WaitUntilState("networkidle")
+
 	_, err = page.Goto("https://www.tbank.ru/login", playwright.PageGotoOptions{
-		WaitUntil: &waitState, // см. предупреждение в доках — networkidle не для всех случаев
+		WaitUntil: &waitState,
 	})
-
 	if err != nil {
 		return "", fmt.Errorf("Goto: %v", err)
 	}
-
-	// Рекомендуемый способ «ожидания затухания сети» дополнительно:
-	//_ = page.WaitForLoadState("networkidle") // строковое значение LoadState также поддерживается.
+	
 	waitPage(page)
 
 	phoneMasked := configs.TBANK_PHONE
