@@ -12,7 +12,10 @@ ENV CGO_ENABLED=0
 RUN go build -o /toppay ./cmd/toppay
 
 # ---------- RUNTIME STAGE ----------
-FROM mcr.microsoft.com/playwright:v1.57.0
+FROM alpine:latest
+
+# Устанавливаем Chromium для chromedp
+RUN apk add --no-cache chromium
 
 WORKDIR /app
 
