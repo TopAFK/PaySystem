@@ -72,7 +72,7 @@ func GetSession() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("Goto: %v", err)
 	}
-	
+
 	waitPage(page)
 
 	phoneMasked := configs.TBANK_PHONE
@@ -159,7 +159,7 @@ func GetSession() (string, error) {
 
 	waitState = playwright.WaitUntilState("networkidle") // допустимое значение WaitUntil
 	_, err = page.Goto("https://www.tbank.ru/mybank/operations", playwright.PageGotoOptions{
-		WaitUntil: &waitState, // см. предупреждение в доках — networkidle не для всех случаев
+		WaitUntil: &waitState,
 	})
 
 	// Небольшая пауза — дождаться завершения редиректов/сетевых запросов
