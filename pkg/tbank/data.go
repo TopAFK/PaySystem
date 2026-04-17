@@ -10,6 +10,13 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
+const (
+	// Timeout для HTTP запроса к API Tbank
+	BankAPITimeout = 30 * time.Second
+	// Период для выборки платежей (24 часа)
+	FetchHistoryPeriod = 24 * time.Hour
+)
+
 type Payment struct {
 	Text   string `json:"text"`
 	Status string `json:"status"`
@@ -38,7 +45,7 @@ type Amount struct {
 func FetchData(bankSessionID string, bankHost string, bankPath string, requestRate time.Duration, client *fasthttp.Client) (Response, error) {
 	now := time.Now().UTC()
 	end := now.UnixMilli()
-	start := now.Add(-24 * time.Hour).UnixMilli()
+	start := now.Add(-FetchHistoryPeriod).UnixMilli()
 
 	var apiResponse Response
 	var uri fasthttp.URI
@@ -59,7 +66,7 @@ func FetchData(bankSessionID string, bankHost string, bankPath string, requestRa
 	req.SetRequestURI(uri.String())
 	req.Header.SetMethod(fasthttp.MethodGet)
 
-	if err := client.DoTimeout(req, resp, requestRate); err != nil {
+	if err := client.DoTimeout(req, resp, BankAPITimeout); err != nil {
 		return apiResponse, err
 	}
 

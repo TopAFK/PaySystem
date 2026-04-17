@@ -19,42 +19,42 @@ const (
 	ResultInsufficientPrivileges = "AUTHENTICATION_FAILED"
 
 	OpTypeCredit = "Credit"
+
+	// Max retry attempts для получения сессии при инициализации
+	MaxSessionRetries = 5
 )
 
 func main() {
 
 	log.Println("1/3 ▫️ Starting client")
 
-	
 	log.Println("2/3 ▫️ Initializing configs")
 	if err := configs.Init(); err != nil {
 		log.Fatal(err)
 	}
 
-
 	log.Println("3/3 ▫️ Fetching session ID")
 
-	const maxRetries = 5
 	var bankSession string
 	var err error
 
-	for attempt := 1; attempt <= maxRetries; attempt++ {
+	for attempt := 1; attempt <= MaxSessionRetries; attempt++ {
 		bankSession, err = tbank.GetSession()
 		if err == nil {
 			break
 		}
 
-		log.Printf("❌ Error fetching session ID, attempt %d/%d: %v", attempt, maxRetries, err)
+		log.Printf("❌ Error fetching session ID, attempt %d/%d: %v", attempt, MaxSessionRetries, err)
 
-		if attempt < maxRetries {
+		if attempt < MaxSessionRetries {
 			time.Sleep(2 * time.Second) // Можно добавить задержку перед следующей попыткой
 		}
 	}
 
 	if err != nil {
-		log.Fatal("❌ Failed to get session ID after ", maxRetries, " attempts: ", err)
+		log.Fatal("❌ Failed to get session ID after ", MaxSessionRetries, " attempts: ", err)
 	}
-	
+
 	client := httpx.New(configs.REQUEST_RATE)
 
 	for {
@@ -71,7 +71,7 @@ func main() {
 			if response.ResultCode != ResultOK {
 				switch response.ResultCode {
 				case ResultInsufficientPrivileges:
-					
+
 					log.Println("Updating session")
 					bankSession, err = tbank.GetSession()
 					if err != nil {

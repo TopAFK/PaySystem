@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	REQUEST_RATE = 10 * time.Second
+	REQUEST_RATE = 30 * time.Second
 )
 
 var (

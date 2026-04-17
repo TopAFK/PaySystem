@@ -11,15 +11,33 @@ import (
 	"github.com/chromedp/chromedp"
 )
 
+const (
+	// Tbank login URL
+	TbankLoginURL = "https://www.tbank.ru/login"
+	// Tbank operations/history page
+	TbankOperationsURL = "https://www.tbank.ru/mybank/operations"
+	// Timeout для всей сессии браузера
+	BrowserSessionTimeout = 120 * time.Second
+	// Timeout между TOTP и следующим шагом
+	PageReactionTimeout = 2 * time.Second
+	// Timeout для финального редиректа после входа
+	FinalRedirectTimeout = 3 * time.Second
+)
+
 func GetSession() (string, error) {
-	// Создаём контекст с таймаутом 120 секунд для всей операции
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	// Создаём контекст с таймаутом для всей операции
+	ctx, cancel := context.WithTimeout(context.Background(), BrowserSessionTimeout)
 	defer cancel()
 
 	// Создаём chromedp контекст с headless флагом и custom user-agent
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
-		chromedp.Flag("headless", true),
-		chromedp.Flag("user-agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"),
+		chromedp.Headless,
+		chromedp.NoSandbox,
+		chromedp.DisableGPU,
+		chromedp.Flag("disable-extensions", true),
+		chromedp.Flag("disable-dev-shm-usage", true),
+		chromedp.Flag("blink-settings", "imagesEnabled=false"),
+		chromedp.UserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36"),
 	)
 
 	allocCtx, cancel := chromedp.NewExecAllocator(ctx, opts...)
@@ -44,7 +62,7 @@ func GetSession() (string, error) {
 	// Логика навигации и входа
 	var psidCookie string
 	err := chromedp.Run(chromeCtx,
-		chromedp.Navigate("https://www.tbank.ru/login"),
+		chromedp.Navigate(TbankLoginURL),
 		chromedp.WaitVisible("[automation-id=phone-input], #pinCode0", chromedp.ByQuery),
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			// Проверяем, видимо ли поле телефона
@@ -82,7 +100,7 @@ func GetSession() (string, error) {
 
 				// Даём время на обработку
 				log.Println("5/9 Waiting for page reaction")
-				if err := chromedp.Sleep(2 * time.Second).Do(ctx); err != nil {
+				if err := chromedp.Sleep(PageReactionTimeout).Do(ctx); err != nil {
 					return fmt.Errorf("sleep after TOTP: %w", err)
 				}
 
@@ -99,9 +117,9 @@ func GetSession() (string, error) {
 						return fmt.Errorf("click submit (after password): %w", err)
 					}
 
-					// Ждём минимум 2 секунды чтобы дать странице время обновиться
+					// Жёдем времени для обновления страницы
 					log.Println("Waiting for page update after password submit...")
-					if err := chromedp.Sleep(2 * time.Second).Do(ctx); err != nil {
+					if err := chromedp.Sleep(PageReactionTimeout).Do(ctx); err != nil {
 						return fmt.Errorf("sleep after password submit: %w", err)
 					}
 					log.Println("Page update completed, proceeding to PIN code entry")
@@ -119,9 +137,9 @@ func GetSession() (string, error) {
 				}
 				log.Println("9/9 Final submit button clicked")
 
-				// Ждём минут загрузку страницы после редиректа
+				// Жёдем загрузку страницы после редиректа
 				log.Println("Waiting for page load after final submit...")
-				if err := chromedp.Sleep(3 * time.Second).Do(ctx); err != nil {
+				if err := chromedp.Sleep(FinalRedirectTimeout).Do(ctx); err != nil {
 					log.Println("ERROR during sleep: ", err)
 					return fmt.Errorf("sleep after final submit: %w", err)
 				}
@@ -143,8 +161,8 @@ func GetSession() (string, error) {
 
 	log.Println("3/5 Navigating to operations page")
 	err = chromedp.Run(chromeCtx,
-		chromedp.Navigate("https://www.tbank.ru/mybank/operations"),
-		chromedp.Sleep(2*time.Second), // Даём время на редиректы
+		chromedp.Navigate(TbankOperationsURL),
+		chromedp.Sleep(PageReactionTimeout), // Даём время на редиректы
 	)
 	if err != nil {
 		return "", fmt.Errorf("navigate to operations: %v", err)
