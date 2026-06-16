@@ -59,8 +59,6 @@ func main() {
 
 	for {
 		for {
-			log.Println("Fetching data")
-
 			response, err := tbank.FetchData(bankSession, configs.BANK_HOST, configs.BANK_PATH, configs.REQUEST_RATE, client)
 			if err != nil {
 				log.Println("❌ Error fetching data:", err)
@@ -71,15 +69,11 @@ func main() {
 			if response.ResultCode != ResultOK {
 				switch response.ResultCode {
 				case ResultInsufficientPrivileges:
-
-					log.Println("Updating session")
 					bankSession, err = tbank.GetSession()
 					if err != nil {
 						log.Println("❌ Error updating session:", err)
 						continue
 					}
-
-					log.Println("✅ Session is updated")
 				default:
 					log.Println("❌ Unknown error, code:", response.ResultCode)
 				}
@@ -98,8 +92,6 @@ func main() {
 
 				paidAt := op.CreatedAt.Milliseconds / 1000
 				sum := op.Amount.Sum
-
-				log.Printf("Processing payment")
 
 				response, err := payment.Process(configs.SYSTEM_KEY, configs.SYSTEM_HOST, configs.SYSTEM_PATH, paidAt, sum)
 

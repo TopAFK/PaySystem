@@ -58,11 +58,12 @@ func FetchData(bankSessionID string, bankHost string, bankPath string, requestRa
 	q.Add("end", strconv.FormatInt(end, 10))
 	q.Add("start", strconv.FormatInt(start, 10))
 
+	
 	req := fasthttp.AcquireRequest()
 	resp := fasthttp.AcquireResponse()
 	defer fasthttp.ReleaseRequest(req)
 	defer fasthttp.ReleaseResponse(resp)
-
+	
 	req.SetRequestURI(uri.String())
 	req.Header.SetMethod(fasthttp.MethodGet)
 

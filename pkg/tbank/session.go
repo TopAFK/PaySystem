@@ -3,7 +3,6 @@ package tbank
 import (
 	"context"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 	"toppay/configs"
@@ -43,16 +42,12 @@ func GetSession() (string, error) {
 	allocCtx, cancel := chromedp.NewExecAllocator(ctx, opts...)
 	defer cancel()
 
-	log.Println("1/5 Launching browser")
-
 	// Отключаем логирование ошибок от chromedp (DevTools Protocol parsing errors)
 	chromeCtx, cancel := chromedp.NewContext(allocCtx,
 		chromedp.WithLogf(func(string, ...interface{}) {}),   // отключить логи
 		chromedp.WithErrorf(func(string, ...interface{}) {}), // отключить ошибки
 	)
 	defer cancel()
-
-	log.Println("2/5 Navigating to login page")
 
 	// Получаем конфиги
 	phoneMasked := configs.TBANK_PHONE
@@ -72,18 +67,15 @@ func GetSession() (string, error) {
 			}
 
 			if isPhoneVisible {
-				log.Println("1/9 Entering phone")
 				if err := chromedp.SendKeys("[automation-id=phone-input]", phoneMasked, chromedp.ByQuery).Do(ctx); err != nil {
 					return fmt.Errorf("enter phone: %w", err)
 				}
 
-				log.Println("2/9 Submitting phone")
 				if err := chromedp.Click("[automation-id=button-submit]", chromedp.ByQuery).Do(ctx); err != nil {
 					return fmt.Errorf("click submit: %w", err)
 				}
 
 				// Ждём появления поля для TOTP
-				log.Println("3/9 Waiting for TOTP")
 				if err := chromedp.WaitVisible("#pinCode0", chromedp.ByQuery).Do(ctx); err != nil {
 					return fmt.Errorf("wait pin code 0: %w", err)
 				}
@@ -93,13 +85,11 @@ func GetSession() (string, error) {
 					return fmt.Errorf("GenerateTOTP: %w", err)
 				}
 
-				log.Println("4/9 Setting TOTP")
 				if err := setPinCodeChromedp(ctx, totp); err != nil {
 					return fmt.Errorf("setPinCode (totp): %w", err)
 				}
 
 				// Даём время на обработку
-				log.Println("5/9 Waiting for page reaction")
 				if err := chromedp.Sleep(PageReactionTimeout).Do(ctx); err != nil {
 					return fmt.Errorf("sleep after TOTP: %w", err)
 				}
@@ -107,51 +97,38 @@ func GetSession() (string, error) {
 				// Проверяем, видимо ли поле пароля
 				var isPasswordVisible bool
 				if err := chromedp.Evaluate(`document.querySelector('[automation-id=password-input]') !== null && window.getComputedStyle(document.querySelector('[automation-id=password-input]')).display !== 'none'`, &isPasswordVisible).Do(ctx); err == nil && isPasswordVisible {
-					log.Println("6/9 Setting password")
 					if err := chromedp.SendKeys("[automation-id=password-input]", password, chromedp.ByQuery).Do(ctx); err != nil {
 						return fmt.Errorf("enter password: %w", err)
 					}
 
-					log.Println("7/9 Submitting password")
 					if err := chromedp.Click("[automation-id=button-submit]", chromedp.ByQuery).Do(ctx); err != nil {
 						return fmt.Errorf("click submit (after password): %w", err)
 					}
 
 					// Жёдем времени для обновления страницы
-					log.Println("Waiting for page update after password submit...")
 					if err := chromedp.Sleep(PageReactionTimeout).Do(ctx); err != nil {
 						return fmt.Errorf("sleep after password submit: %w", err)
 					}
-					log.Println("Page update completed, proceeding to PIN code entry")
 				}
 
-				log.Println("8/9 Starting PIN code entry")
 				if err := setPinCodeChromedp(ctx, pinCode); err != nil {
 					return fmt.Errorf("setPinCode (pin): %w", err)
 				}
-				log.Println("8/9 PIN code entered successfully")
 
-				log.Println("9/9 Clicking final submit button")
 				if err := chromedp.Click("[automation-id=button-submit]", chromedp.ByQuery).Do(ctx); err != nil {
 					return fmt.Errorf("click submit (final): %w", err)
 				}
-				log.Println("9/9 Final submit button clicked")
 
 				// Жёдем загрузку страницы после редиректа
-				log.Println("Waiting for page load after final submit...")
 				if err := chromedp.Sleep(FinalRedirectTimeout).Do(ctx); err != nil {
-					log.Println("ERROR during sleep: ", err)
 					return fmt.Errorf("sleep after final submit: %w", err)
 				}
-				log.Println("Page load wait completed")
 			} else {
 				// Телефон не спрашивали — возможно, сразу пин-код
-				log.Println("1/1 Setting PIN code (no phone step)")
 				if err := setPinCodeChromedp(ctx, pinCode); err != nil {
 					return fmt.Errorf("setPinCode (no phone step): %w", err)
 				}
 			}
-			log.Println("Login flow completed successfully")
 			return nil
 		}),
 	)
@@ -159,7 +136,6 @@ func GetSession() (string, error) {
 		return "", fmt.Errorf("login flow: %v", err)
 	}
 
-	log.Println("3/5 Navigating to operations page")
 	err = chromedp.Run(chromeCtx,
 		chromedp.Navigate(TbankOperationsURL),
 		chromedp.Sleep(PageReactionTimeout), // Даём время на редиректы
@@ -168,7 +144,6 @@ func GetSession() (string, error) {
 		return "", fmt.Errorf("navigate to operations: %v", err)
 	}
 
-	log.Println("4/5 Fetching cookies")
 	err = chromedp.Run(chromeCtx,
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			// Получаем все cookies через JavaScript
@@ -187,8 +162,6 @@ func GetSession() (string, error) {
 			for _, c := range cookies {
 				if nameVal, ok := c["name"].(string); ok && nameVal == "psid" {
 					if valueVal, ok := c["value"].(string); ok {
-						log.Println("5/5 ✅ Cookie found")
-						log.Println(valueVal)
 						psidCookie = valueVal
 						return nil
 					}
